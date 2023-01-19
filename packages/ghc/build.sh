@@ -1,5 +1,5 @@
 TERMUX_PKG_HOMEPAGE=https://www.haskell.org/ghc/
-TERMUX_PKG_DESCRIPTION="The Glasgow Haskell Compiler - Dynamic Libraries"
+TERMUX_PKG_DESCRIPTION="The Glasgow Haskell Compiler"
 TERMUX_PKG_LICENSE="BSD 2-Clause, BSD 3-Clause, LGPL-2.1"
 TERMUX_PKG_MAINTAINER="Aditya Alok <alok@termux.org>"
 TERMUX_PKG_VERSION=9.2.5
@@ -21,64 +21,51 @@ TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
 --with-curses-libraries=${TERMUX_PREFIX}/lib
 --with-curses-includes=${TERMUX_PREFIX}/include
 "
-# ghc-pkg is in this package. Here ghci is lib not bin.
-TERMUX_PKG_PROVIDES="haskekl-ghc-pkg, haskell-ghci"
-TERMUX_PKG_CONFLICTS="haskell-ghci"
-TERMUX_PKG_STATICSPLIT_EXTRA_PATTERNS="lib/**/*.hi lib/**/*.o"
 
 termux_step_pre_configure() {
 	termux_setup_ghc
 
-	_TERMUX_HOST_PLATFORM="${TERMUX_HOST_PLATFORM}"
-	[ "${TERMUX_ARCH}" = "arm" ] && _TERMUX_HOST_PLATFORM="armv7a-linux-androideabi"
+	local host_platform="${TERMUX_HOST_PLATFORM}"
+	[ "${TERMUX_ARCH}" = "arm" ] && host_platform="armv7a-linux-androideabi"
+	TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" --target=${host_platform}"
 
-	TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" --target=${_TERMUX_HOST_PLATFORM}"
-
-	_WRAPPER_BIN="${TERMUX_PKG_BUILDDIR}/_wrapper/bin"
-	mkdir -p "${_WRAPPER_BIN}"
+	local wrapper_bin="${TERMUX_PKG_BUILDDIR}/_wrapper/bin"
+	mkdir -p "${wrapper_bin}"
 
 	for tool in llc opt; do
-		local wrapper="${_WRAPPER_BIN}/${tool}"
-		cat > "$wrapper" <<- EOF
+		local wrapper="${wrapper_bin}/${tool}"
+		cat >"$wrapper" <<-EOF
 			#!$(command -v sh)
 			exec /usr/lib/llvm-12/bin/${tool} "\$@"
 		EOF
 		chmod 0700 "$wrapper"
 	done
 
-	local ar_wrapper="${_WRAPPER_BIN}/${_TERMUX_HOST_PLATFORM}-ar"
-	cat > "$ar_wrapper" <<- EOF
+	local ar_wrapper="${wrapper_bin}/${host_platform}-ar"
+	cat >"$ar_wrapper" <<-EOF
 		#!$(command -v sh)
-		exec $(command -v ${AR}) "\$@"
+		exec $(command -v "${AR}") "\$@"
 	EOF
 	chmod 0700 "$ar_wrapper"
 
-	local strip_wrapper="${_WRAPPER_BIN}/${_TERMUX_HOST_PLATFORM}-strip"
-	cat > "$strip_wrapper" <<- EOF
-		#!$(command -v sh)
-		exec $(command -v ${STRIP}) "\$@"
-	EOF
-	chmod 0700 "$strip_wrapper"
+	export PATH="${wrapper_bin}:${PATH}"
 
-	export PATH="${_WRAPPER_BIN}:${PATH}"
-	export LIBTOOL="$(command -v libtool)"
-
-	local EXTRA_FLAGS="-O -optl-Wl,-rpath=${TERMUX_PREFIX}/lib -optl-Wl,--enable-new-dtags"
-
-	[ "${TERMUX_ARCH}" != "i686" ] && EXTRA_FLAGS+=" -fllvm"
+	local extra_flags="-O -optl-Wl,-rpath=${TERMUX_PREFIX}/lib -optl-Wl,--enable-new-dtags"
+	[ "${TERMUX_ARCH}" != "i686" ] && extra_flags+=" -fllvm"
 
 	# Suppress warnings for LLVM 13
 	sed -i 's/LlvmMaxVersion=13/LlvmMaxVersion=15/' configure.ac
 
+	export LIBTOOL && LIBTOOL="$(command -v libtool)"
+
 	cp mk/build.mk.sample mk/build.mk
-	cat >> mk/build.mk <<- EOF
+	cat >>mk/build.mk <<-EOF
 		SRC_HC_OPTS        = -O -H64m
 		GhcStage1HcOpts    = -O
-		GhcStage2HcOpts    = ${EXTRA_FLAGS}
-		GhcLibHcOpts       = ${EXTRA_FLAGS} -optl-landroid-posix-semaphore
+		GhcStage2HcOpts    = ${extra_flags}
+		GhcLibHcOpts       = ${extra_flags} -optl-landroid-posix-semaphore
 		BuildFlavour       = quick-cross
 		GhcLibWays         = v dyn
-		STRIP_CMD          = ${STRIP}
 		BUILD_PROF_LIBS    = NO
 		HADDOCK_DOCS       = NO
 		BUILD_SPHINX_HTML  = NO
@@ -90,7 +77,7 @@ termux_step_pre_configure() {
 		StripLibraries     = YES
 	EOF
 
-	patch -p1 <<- EOF
+	patch -p1 <<-EOF
 		--- ghc.orig/rules/build-package-data.mk 2022-11-07 01:10:29.000000000 +0530
 		+++ ghc.mod/rules/build-package-data.mk  2022-11-11 13:08:01.992488180 +0530
 		@@ -68,6 +68,12 @@

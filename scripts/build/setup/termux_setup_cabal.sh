@@ -1,12 +1,12 @@
 # shellcheck shell=bash
 termux_setup_cabal() {
-	if [[ "${TERMUX_ON_DEVICE_BUILD}" == "false" ]]; then
+	if [[ "${TERMUX_ON_DEVICE_BUILD}" == false ]]; then
 		local TERMUX_CABAL_VERSION=3.6.2.0
 		local TERMUX_CABAL_TAR="${TERMUX_COMMON_CACHEDIR}/cabal-${TERMUX_CABAL_VERSION}.tar.xz"
 
 		local TERMUX_CABAL_RUNTIME_FOLDER
 
-		if [[ "${TERMUX_PACKAGES_OFFLINE-false}" == "true" ]]; then
+		if [[ "${TERMUX_PACKAGES_OFFLINE-false}" == true ]]; then
 			TERMUX_CABAL_RUNTIME_FOLDER="${TERMUX_SCRIPTDIR}/build-tools/cabal-${TERMUX_CABAL_VERSION}-runtime"
 		else
 			TERMUX_CABAL_RUNTIME_FOLDER="${TERMUX_COMMON_CACHEDIR}/cabal-${TERMUX_CABAL_VERSION}-runtime"
