@@ -42,7 +42,7 @@ termux_setup_ghc_cross_compiler() {
 			"$FIX_PATH_SCRIPT" \
 			19604368abe01534615fd908184d16149484d966a7de950e3dcddbc7fe066496
 		# Fix ghc paths.
-		bash "$FIX_PATH_SCRIPT" "$TERMUX_GHC_RUNTIME_FOLDER"
+		bash "$FIX_PATH_SCRIPT" "$TERMUX_GHC_RUNTIME_FOLDER" >/dev/null
 
 		# Strip hostname from tools:
 		local _ghc_host="$TERMUX_ARCH-linux-android"
