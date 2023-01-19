@@ -38,7 +38,7 @@ termux_setup_ghc_cross_compiler() {
 
 		# Get fix-path script.
 		FIX_PATH_SCRIPT="$TERMUX_GHC_RUNTIME_FOLDER/fix-path.sh"
-		termux-download "https://raw.githubusercontent.com/MrAdityaAlok/ghc-cross-tools/main/fix-path.sh" \
+		termux_download "https://raw.githubusercontent.com/MrAdityaAlok/ghc-cross-tools/main/fix-path.sh" \
 			"$FIX_PATH_SCRIPT" \
 			19604368abe01534615fd908184d16149484d966a7de950e3dcddbc7fe066496
 		# Fix ghc paths.
