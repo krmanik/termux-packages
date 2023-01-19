@@ -16,16 +16,6 @@ termux_setup_toolchain_23c() {
 	export STRIP=llvm-strip
 	export NM=llvm-nm
 
-	export TERMUX_HASKELL_LLVM_BACKEND="-fllvm --ghc-option=-fllvm"
-	if [ "${TERMUX_ARCH}" = "i686" ]; then
-		TERMUX_HASKELL_LLVM_BACKEND=""
-	fi
-
-	export TERMUX_HASKELL_OPTIMISATION="-O"
-	if [ "${TERMUX_DEBUG_BUILD}" = true ]; then
-		TERMUX_HASKELL_OPTIMISATION="-O0"
-	fi
-
 	if [ "$TERMUX_ON_DEVICE_BUILD" = "false" ]; then
 		export PATH=$TERMUX_STANDALONE_TOOLCHAIN/bin:$PATH
 		export CC_FOR_BUILD=gcc
@@ -117,7 +107,7 @@ termux_setup_toolchain_23c() {
 	# But many programs still may search for libutil.
 	if [ ! -f $TERMUX_PREFIX/lib/libutil.so ]; then
 		mkdir -p "$TERMUX_PREFIX/lib"
-		echo 'INPUT(-lc)' > $TERMUX_PREFIX/lib/libutil.so
+		echo 'INPUT(-lc)' >$TERMUX_PREFIX/lib/libutil.so
 	fi
 
 	if [ "$TERMUX_ON_DEVICE_BUILD" = "true" ] || [ -d $TERMUX_STANDALONE_TOOLCHAIN ]; then
@@ -169,7 +159,7 @@ termux_setup_toolchain_23c() {
 	local _HOST_PKGCONFIG
 	_HOST_PKGCONFIG=$(command -v pkg-config)
 	mkdir -p "$PKG_CONFIG_LIBDIR"
-	cat > $_TERMUX_TOOLCHAIN_TMPDIR/bin/pkg-config <<-HERE
+	cat >$_TERMUX_TOOLCHAIN_TMPDIR/bin/pkg-config <<-HERE
 		#!/bin/sh
 		export PKG_CONFIG_DIR=
 		export PKG_CONFIG_LIBDIR=$PKG_CONFIG_LIBDIR
@@ -180,9 +170,9 @@ termux_setup_toolchain_23c() {
 	cd $_TERMUX_TOOLCHAIN_TMPDIR/sysroot
 	for f in $TERMUX_SCRIPTDIR/ndk-patches/$TERMUX_NDK_VERSION/*.patch; do
 		echo "Applying ndk-patch: $(basename $f)"
-		sed "s%\@TERMUX_PREFIX\@%${TERMUX_PREFIX}%g" "$f" | \
-			sed "s%\@TERMUX_HOME\@%${TERMUX_ANDROID_HOME}%g" | \
-			patch --silent -p1;
+		sed "s%\@TERMUX_PREFIX\@%${TERMUX_PREFIX}%g" "$f" |
+			sed "s%\@TERMUX_HOME\@%${TERMUX_ANDROID_HOME}%g" |
+			patch --silent -p1
 	done
 	# libintl.h: Inline implementation gettext functions.
 	# langinfo.h: Inline implementation of nl_langinfo().
@@ -209,7 +199,7 @@ termux_setup_toolchain_23c() {
 	for dir in usr/lib/*; do
 		# This seem to be needed when building rust
 		# packages
-		echo 'INPUT(-lunwind)' > $dir/libgcc.a
+		echo 'INPUT(-lunwind)' >$dir/libgcc.a
 	done
 
 	grep -lrw $_TERMUX_TOOLCHAIN_TMPDIR/sysroot/usr/include/c++/v1 -e '<version>' | xargs -n 1 sed -i 's/<version>/\"version\"/g'

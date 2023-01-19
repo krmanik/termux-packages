@@ -7,7 +7,6 @@ termux_step_configure() {
 		[ "$TERMUX_CONTINUE_BUILD" == "true" ] && return
 		termux_setup_cabal
 		termux_setup_ghc_cross_compiler
-		termux_step_configure_haskell_build
 	elif [ "$TERMUX_PKG_FORCE_CMAKE" = "false" ] && [ -f "$TERMUX_PKG_SRCDIR/configure" ]; then
 		if [ "$TERMUX_CONTINUE_BUILD" == "true" ]; then
 			return
