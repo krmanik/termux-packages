@@ -16,7 +16,10 @@ termux_setup_ghc_cross_compiler() {
 
 		export PATH="${TERMUX_GHC_RUNTIME_FOLDER}/bin:${PATH}"
 
-		[[ -d "${TERMUX_GHC_RUNTIME_FOLDER}" ]] && return
+		[[ -d "${TERMUX_GHC_RUNTIME_FOLDER}" ]] && {
+			__link_libs
+			return
+		}
 
 		local CHECKSUMS
 		CHECKSUMS="$(
@@ -33,13 +36,6 @@ termux_setup_ghc_cross_compiler() {
 			"$(echo "${CHECKSUMS}" | grep -w "${TERMUX_ARCH}" | cut -d ':' -f 2)"
 
 		mkdir -p "${TERMUX_GHC_RUNTIME_FOLDER}"
-
-		# Workaround for https://github.com/haskell/cabal/issues/2997
-		for d in "$TERMUX_PREFIX"/*; do
-			ln -s "$d" "$TERMUX_GHC_RUNTIME_FOLDER/$(basename "$d")"
-		done
-		ln -s "$TERMUX_PREFIX/include" "$TERMUX_GHC_RUNTIME_FOLDER/include"
-
 		tar -xf "${TERMUX_GHC_TAR}" -C "${TERMUX_GHC_RUNTIME_FOLDER}"
 		rm "${TERMUX_GHC_TAR}"
 
@@ -66,6 +62,8 @@ termux_setup_ghc_cross_compiler() {
 			done
 		)
 
+		__link_prefix
+
 	else
 		if [[ "${TERMUX_APP_PACKAGE_MANAGER}" == "apt" ]] && "$(dpkg-query -W -f '${db:Status-Status}\n' ghc 2>/dev/null)" != "installed" ||
 			[[ "${TERMUX_APP_PACKAGE_MANAGER}" == "pacman" ]] && ! "$(pacman -Q ghc 2>/dev/null)"; then
@@ -73,4 +71,23 @@ termux_setup_ghc_cross_compiler() {
 			exit 1
 		fi
 	fi
+}
+
+# Workaround for https://github.com/haskell/cabal/issues/2997
+
+__link_prefix() {
+	for d in "$TERMUX_PREFIX"/*; do
+		[[ "$(basename "$d")" == "lib" ]] && {
+			__link_libs
+			continue
+		}
+		ln -s "$d" "$TERMUX_GHC_RUNTIME_FOLDER/$(basename "$d")"
+	done
+	ln -s "$TERMUX_PREFIX/include" "$TERMUX_GHC_RUNTIME_FOLDER/include"
+}
+
+__link_libs() {
+	for f in "$TERMUX_PREFIX"/lib/*; do
+		ln -sf "$f" "$TERMUX_GHC_RUNTIME_FOLDER/lib/$(basename "$d")"
+	done
 }
