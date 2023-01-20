@@ -88,6 +88,6 @@ __link_prefix() {
 
 __link_libs() {
 	for f in "$TERMUX_PREFIX"/lib/*; do
-		ln -sf "$f" "$TERMUX_GHC_RUNTIME_FOLDER/lib/$(basename "$d")"
+		ln -sf "$f" "$TERMUX_GHC_RUNTIME_FOLDER/lib/$(basename "$f")"
 	done
 }
