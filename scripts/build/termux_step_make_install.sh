@@ -6,7 +6,7 @@ termux_step_make_install() {
 	elif test -f setup.py || test -f pyproject.toml || test -f setup.cfg; then
 		pip install --no-deps . --prefix $TERMUX_PREFIX
 	elif ls ./*.cabal &>/dev/null; then
-		cabal install . -j "$TERMUX_MAKE_PROCESSES" \
+		cabal install \
 			--extra-include-dirs="$TERMUX_PREFIX/include" \
 			--extra-lib-dirs="$TERMUX_PREFIX/include" \
 			--prefix="$TERMUX_PREFIX" \
