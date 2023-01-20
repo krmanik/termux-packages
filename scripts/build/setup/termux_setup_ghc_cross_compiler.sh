@@ -81,9 +81,9 @@ __link_prefix() {
 			__link_libs
 			continue
 		}
+		[[ "$(basename "$d")" == "bin" ]] && continue
 		ln -s "$d" "$TERMUX_GHC_RUNTIME_FOLDER/$(basename "$d")"
 	done
-	ln -s "$TERMUX_PREFIX/include" "$TERMUX_GHC_RUNTIME_FOLDER/include"
 }
 
 __link_libs() {
