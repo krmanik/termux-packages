@@ -33,6 +33,13 @@ termux_setup_ghc_cross_compiler() {
 			"$(echo "${CHECKSUMS}" | grep -w "${TERMUX_ARCH}" | cut -d ':' -f 2)"
 
 		mkdir -p "${TERMUX_GHC_RUNTIME_FOLDER}"
+
+		# Workaround for https://github.com/haskell/cabal/issues/2997
+		for d in "$TERMUX_PREFIX"/*; do
+			ln -s "$d" "$TERMUX_GHC_RUNTIME_FOLDER/$(basename "$d")"
+		done
+		ln -s "$TERMUX_PREFIX/include" "$TERMUX_GHC_RUNTIME_FOLDER/include"
+
 		tar -xf "${TERMUX_GHC_TAR}" -C "${TERMUX_GHC_RUNTIME_FOLDER}"
 		rm "${TERMUX_GHC_TAR}"
 
@@ -40,16 +47,24 @@ termux_setup_ghc_cross_compiler() {
 		FIX_PATH_SCRIPT="$TERMUX_GHC_RUNTIME_FOLDER/fix-path.sh"
 		termux_download "https://raw.githubusercontent.com/MrAdityaAlok/ghc-cross-tools/main/fix-path.sh" \
 			"$FIX_PATH_SCRIPT" \
-			19604368abe01534615fd908184d16149484d966a7de950e3dcddbc7fe066496
+			938c0617a921a044df79fc637d38fb03255b884ed7ef94cd895b86e108f41ffd
 		# Fix ghc paths.
-		bash "$FIX_PATH_SCRIPT" "$TERMUX_GHC_RUNTIME_FOLDER" >/dev/null
+		bash "$FIX_PATH_SCRIPT" "$TERMUX_GHC_RUNTIME_FOLDER" &>/dev/null || {
+			echo "[termux_setup_ghc_cross_compiler]: Failed to fix ghc path."
+			exit 1
+		}
 
-		# Strip hostname from tools:
-		local _ghc_host="$TERMUX_ARCH-linux-android"
-		if [[ "$TERMUX_ARCH" == "arm" ]]; then _ghc_host="armv7a-linux-androideabi"; fi
-		for tool in "$TERMUX_GHC_RUNTIME_FOLDER"/bin/"$_ghc_host"-*; do
-			mv "$tool" "${tool#*"$_ghc_host"-}"
-		done
+		# Prepare tools for cabal:
+		(
+			local _ghc_host="$TERMUX_ARCH-linux-android"
+			if [[ "$TERMUX_ARCH" == "arm" ]]; then _ghc_host="armv7a-linux-androideabi"; fi
+
+			cd "$TERMUX_GHC_RUNTIME_FOLDER/bin"
+
+			for tool in ghc ghc-pkg hpc hp2ps hsc2hs; do
+				ln -sf "$_ghc_host-$tool" "$tool"
+			done
+		)
 
 	else
 		if [[ "${TERMUX_APP_PACKAGE_MANAGER}" == "apt" ]] && "$(dpkg-query -W -f '${db:Status-Status}\n' ghc 2>/dev/null)" != "installed" ||
