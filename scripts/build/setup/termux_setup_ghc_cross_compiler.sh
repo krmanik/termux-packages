@@ -16,22 +16,23 @@ termux_setup_ghc_cross_compiler() {
 
 		export PATH="${TERMUX_GHC_RUNTIME_FOLDER}/bin:${PATH}"
 
-		[[ -d "${TERMUX_GHC_RUNTIME_FOLDER}" ]] && {
-			__link_libs
-			return
-		}
+		test -d "${TERMUX_PREFIX}/lib/ghc-${TERMUX_GHC_VERSION}" ||
+			termux_error_exit "Package 'ghc-libs' is not installed. It is required by GHC cross-compiler." \
+				"You should specify it in 'TERMUX_PKG_BUILD_DEPENDS'."
+
+		[[ -d "${TERMUX_GHC_RUNTIME_FOLDER}" ]] && return
 
 		local CHECKSUMS
 		CHECKSUMS="$(
 			cat <<-EOF
-				aarch64:e94d1c2b0fb92ddd93bd90f50394293501c874da10f3732a70ea098563607962
-				arm:1143cea56423a294e461c89a01963b20ddbe49e11f23041d8429dd0a7a8cbabe
-				i686:f7ff072963f1f52f1dc38603c1debcad68fea39417f1a2c586512b201eb8b9da
-				x86_64:4175f33d272669e3797eedbf93420a6a22955cd27d3aa782fd14f79ed1d526ba
+				aarch64:0401a8ac93c6366805d837394d92fb67c9afcf86f7aa6f58a23c3588cdf7b654
+				arm:b956ffdac9136647683fb5556e405d822d264bd9e1109b7286d53c89eb71c926
+				i686:d5c959a3f6e4db47857fb83973986fcd00d23a82c3026c1d2c8e44564f7c2265
+				x86_64:bbb84e5bddc12d97eecd86e6dc70e37a28c2f22a9bbf1b3d20b49e1f4c15519d
 			EOF
 		)"
 
-		termux_download "https://github.com/MrAdityaAlok/ghc-cross-tools/releases/download/ghc-v${TERMUX_GHC_VERSION}/ghc-${TERMUX_GHC_VERSION}-${TERMUX_ARCH}.tar.xz" \
+		termux_download "https://github.com/MrAdityaAlok/ghc-cross-tools/releases/download/ghc-v${TERMUX_GHC_VERSION}/ghc-cross-bin-${TERMUX_GHC_VERSION}-${TERMUX_ARCH}.tar.xz" \
 			"${TERMUX_GHC_TAR}" \
 			"$(echo "${CHECKSUMS}" | grep -w "${TERMUX_ARCH}" | cut -d ':' -f 2)"
 
@@ -39,30 +40,16 @@ termux_setup_ghc_cross_compiler() {
 		tar -xf "${TERMUX_GHC_TAR}" -C "${TERMUX_GHC_RUNTIME_FOLDER}"
 		rm "${TERMUX_GHC_TAR}"
 
-		# Get fix-path script.
-		FIX_PATH_SCRIPT="$TERMUX_GHC_RUNTIME_FOLDER/fix-path.sh"
-		termux_download "https://raw.githubusercontent.com/MrAdityaAlok/ghc-cross-tools/main/fix-path.sh" \
-			"$FIX_PATH_SCRIPT" \
-			938c0617a921a044df79fc637d38fb03255b884ed7ef94cd895b86e108f41ffd
-		# Fix ghc paths.
-		bash "$FIX_PATH_SCRIPT" "$TERMUX_GHC_RUNTIME_FOLDER" &>/dev/null || {
-			echo "[termux_setup_ghc_cross_compiler]: Failed to fix ghc path."
-			exit 1
-		}
+		# Replace ghc settings with settings of the cross compiler.
+		# NOTE: This edits file in $TERMUX_PREFIX after timestamp creation. Remove it in massage step.
+		sed "s|\$topdir/bin/unlit|${TERMUX_GHC_RUNTIME_FOLDER}/lib/ghc-${TERMUX_GHC_VERSION}/bin/unlit|g" \
+			"${TERMUX_GHC_RUNTIME_FOLDER}/lib/ghc-${TERMUX_GHC_VERSION}/settings" > \
+			"${TERMUX_PREFIX}/lib/ghc-${TERMUX_GHC_VERSION}/settings"
 
-		# Prepare tools for cabal:
-		(
-			local _ghc_host="$TERMUX_ARCH-linux-android"
-			if [[ "$TERMUX_ARCH" == "arm" ]]; then _ghc_host="armv7a-linux-androideabi"; fi
-
-			cd "$TERMUX_GHC_RUNTIME_FOLDER/bin"
-
-			for tool in ghc ghc-pkg hpc hp2ps hsc2hs; do
-				ln -sf "$_ghc_host-$tool" "$tool"
-			done
-		)
-
-		__link_prefix
+		for tool in ghc ghc-pkg hsc2hs hp2ps; do
+			sed -i "s|\$executablename|${TERMUX_GHC_RUNTIME_FOLDER}/lib/ghc-${TERMUX_GHC_VERSION}/bin/${tool}|g" \
+				"${TERMUX_GHC_RUNTIME_FOLDER}/bin/${tool}"
+		done
 
 	else
 		if [[ "${TERMUX_APP_PACKAGE_MANAGER}" == "apt" ]] && "$(dpkg-query -W -f '${db:Status-Status}\n' ghc 2>/dev/null)" != "installed" ||
@@ -71,23 +58,4 @@ termux_setup_ghc_cross_compiler() {
 			exit 1
 		fi
 	fi
-}
-
-# Workaround for https://github.com/haskell/cabal/issues/2997
-
-__link_prefix() {
-	for d in "$TERMUX_PREFIX"/*; do
-		[[ "$(basename "$d")" == "lib" ]] && {
-			__link_libs
-			continue
-		}
-		[[ "$(basename "$d")" == "bin" ]] && continue
-		ln -s "$d" "$TERMUX_GHC_RUNTIME_FOLDER/$(basename "$d")"
-	done
-}
-
-__link_libs() {
-	for f in "$TERMUX_PREFIX"/lib/*; do
-		ln -sf "$f" "$TERMUX_GHC_RUNTIME_FOLDER/lib/$(basename "$f")"
-	done
 }

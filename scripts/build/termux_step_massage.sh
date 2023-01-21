@@ -112,10 +112,10 @@ termux_step_massage() {
 		SYMBOLS+=" posix_spawn posix_spawnp"
 		grep_pattern="$(create_grep_pattern $SYMBOLS)"
 		for lib in $(find lib -name "*.so"); do
-			if ! $READELF -h "$lib" &> /dev/null; then
+			if ! $READELF -h "$lib" &>/dev/null; then
 				continue
 			fi
-			if $READELF -s "$lib" | egrep "${grep_pattern}" &> /dev/null; then
+			if $READELF -s "$lib" | egrep "${grep_pattern}" &>/dev/null; then
 				termux_error_exit "$lib contains undefined symbols:\n$($READELF -s "$lib" | egrep "${grep_pattern}")"
 			fi
 		done
@@ -128,8 +128,8 @@ termux_step_massage() {
 	fi
 
 	# Remove unnecessary files in haskell packages:
-	if [[ "${TERMUX_PKG_NAME}" != "ghc-libs" ]] && [[ "${TERMUX_PKG_NAME}" != "ghc" ]]; then
-		test -d ./lib/ghc-* && rm -rf ./lib/ghc-* 2>/dev/null # Remove full ghc-* dir since cross compiler installs packages in "./lib/${TERMUX_ARCH}-android-ghc-X.Y.Z"
+	if ! [[ $TERMUX_PKG_NAME =~ ghc|ghc-libs ]]; then
+		test -d ./lib/ghc-*/settings && rm -rf ./lib/ghc-*/settings 2>/dev/null
 	fi
 
 	# .. remove empty directories (NOTE: keep this last):

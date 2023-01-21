@@ -1,3 +1,4 @@
+# shellcheck disable=SC2086
 termux_step_make_install() {
 	[ "$TERMUX_PKG_METAPACKAGE" = "true" ] && return
 
@@ -7,9 +8,10 @@ termux_step_make_install() {
 		pip install --no-deps . --prefix $TERMUX_PREFIX
 	elif ls ./*.cabal &>/dev/null; then
 		cabal install \
-			--extra-include-dirs="$TERMUX_PREFIX/include" \
-			--extra-lib-dirs="$TERMUX_PREFIX/include" \
+			--hsc2hs-option=--cross-compile \
+			--configure-option=--host="$TERMUX_HOST_PLATFORM" \
 			--prefix="$TERMUX_PREFIX" \
+			--disable-tests \
 			--installdir="$TERMUX_PREFIX/bin" \
 			--install-method="copy" \
 			$TERMUX_PKG_EXTRA_CONFIGURE_ARGS

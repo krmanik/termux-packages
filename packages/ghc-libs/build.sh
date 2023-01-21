@@ -1,5 +1,5 @@
 TERMUX_PKG_HOMEPAGE=https://www.haskell.org/ghc/
-TERMUX_PKG_DESCRIPTION="The Glasgow Haskell Compiler"
+TERMUX_PKG_DESCRIPTION="The Glasgow Haskell Compiler libraries"
 TERMUX_PKG_LICENSE="BSD 2-Clause, BSD 3-Clause, LGPL-2.1"
 TERMUX_PKG_MAINTAINER="Aditya Alok <alok@termux.org>"
 TERMUX_PKG_VERSION=9.2.5
@@ -21,34 +21,10 @@ TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
 --with-curses-libraries=${TERMUX_PREFIX}/lib
 --with-curses-includes=${TERMUX_PREFIX}/include
 "
+TERMUX_PKG_NO_STATICSPLIT=true
 
 termux_step_pre_configure() {
 	termux_setup_ghc
-
-	local host_platform="${TERMUX_HOST_PLATFORM}"
-	[ "${TERMUX_ARCH}" = "arm" ] && host_platform="armv7a-linux-androideabi"
-	TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" --target=${host_platform}"
-
-	local wrapper_bin="${TERMUX_PKG_BUILDDIR}/_wrapper/bin"
-	mkdir -p "${wrapper_bin}"
-
-	for tool in llc opt; do
-		local wrapper="${wrapper_bin}/${tool}"
-		cat >"$wrapper" <<-EOF
-			#!$(command -v sh)
-			exec /usr/lib/llvm-12/bin/${tool} "\$@"
-		EOF
-		chmod 0700 "$wrapper"
-	done
-
-	local ar_wrapper="${wrapper_bin}/${host_platform}-ar"
-	cat >"$ar_wrapper" <<-EOF
-		#!$(command -v sh)
-		exec $(command -v "${AR}") "\$@"
-	EOF
-	chmod 0700 "$ar_wrapper"
-
-	export PATH="${wrapper_bin}:${PATH}"
 
 	local extra_flags="-O -optl-Wl,-rpath=${TERMUX_PREFIX}/lib -optl-Wl,--enable-new-dtags"
 	[ "${TERMUX_ARCH}" != "i686" ] && extra_flags+=" -fllvm"
