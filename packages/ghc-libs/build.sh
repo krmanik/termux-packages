@@ -26,6 +26,10 @@ TERMUX_PKG_NO_STATICSPLIT=true
 termux_step_pre_configure() {
 	termux_setup_ghc
 
+	local host_platform="${TERMUX_HOST_PLATFORM}"
+	[ "${TERMUX_ARCH}" = "arm" ] && host_platform="armv7a-linux-androideabi"
+	TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" --target=${host_platform}"
+
 	local extra_flags="-O -optl-Wl,-rpath=${TERMUX_PREFIX}/lib -optl-Wl,--enable-new-dtags"
 	[ "${TERMUX_ARCH}" != "i686" ] && extra_flags+=" -fllvm"
 
