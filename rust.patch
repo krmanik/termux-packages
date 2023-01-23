@@ -1,0 +1,66 @@
+diff --git a/disabled-packages/rustc-nightly/config.toml b/disabled-packages/rustc-nightly/config.toml
+index db907ba9e..f3680bc32 100644
+--- a/disabled-packages/rustc-nightly/config.toml
++++ b/disabled-packages/rustc-nightly/config.toml
+@@ -23,7 +23,7 @@ deny-warnings = false
+ [target.wasm32-unknown-unknown]
+ 
+ [target.x86_64-unknown-linux-gnu]
+-llvm-config = "/usr/bin/llvm-config-12"
++llvm-config = "/usr/bin/llvm-config-13"
+ 
+ [target.@RUST_TARGET_TRIPLE@]
+ android-ndk = "@TERMUX_STANDALONE_TOOLCHAIN@"
+diff --git a/packages/rust/build.sh b/packages/rust/build.sh
+index 56d79e612..031c3e640 100644
+--- a/packages/rust/build.sh
++++ b/packages/rust/build.sh
+@@ -2,9 +2,9 @@ TERMUX_PKG_HOMEPAGE=https://www.rust-lang.org/
+ TERMUX_PKG_DESCRIPTION="Systems programming language focused on safety, speed and concurrency"
+ TERMUX_PKG_LICENSE="MIT"
+ TERMUX_PKG_MAINTAINER="@termux"
+-TERMUX_PKG_VERSION=1.66.1
++TERMUX_PKG_VERSION=1.64.0
+ TERMUX_PKG_SRCURL=https://static.rust-lang.org/dist/rustc-$TERMUX_PKG_VERSION-src.tar.xz
+-TERMUX_PKG_SHA256=07ac4e6c93e0d8ecfaf3b86c4c78bbbde3f5be675f0334e7fb343cb4a0b81ebe
++TERMUX_PKG_SHA256=e8170d318fac9d2fc17d5c3e648e7068f56e8db8d233d864aeffbef7c6542eac
+ _LLVM_MAJOR_VERSION=$(. $TERMUX_SCRIPTDIR/packages/libllvm/build.sh; echo $LLVM_MAJOR_VERSION)
+ _LLVM_MAJOR_VERSION_NEXT=$((_LLVM_MAJOR_VERSION + 1))
+ TERMUX_PKG_DEPENDS="libc++, clang, openssl, lld, zlib, libllvm (<< $_LLVM_MAJOR_VERSION_NEXT)"
+@@ -67,7 +67,7 @@ termux_step_configure() {
+ 	# like 30 to 40 + minutes ... so lets get it right
+ 
+ 	# upstream only tests build ver one version behind $TERMUX_PKG_VERSION
+-	local BOOTSTRAP_VERSION=1.65.0
++	local BOOTSTRAP_VERSION=1.63.0
+ 	rustup install $BOOTSTRAP_VERSION
+ 	rustup default $BOOTSTRAP_VERSION-x86_64-unknown-linux-gnu
+ 	export PATH=$HOME/.rustup/toolchains/$BOOTSTRAP_VERSION-x86_64-unknown-linux-gnu/bin:$PATH
+@@ -87,7 +87,7 @@ termux_step_configure() {
+ 	export RUST_LIBDIR=$TERMUX_PKG_BUILDDIR/_lib
+ 	export CARGO_TARGET_${env_host}_RUSTFLAGS="-L$RUST_LIBDIR -C link-arg=-l:libgetloadavg.a"
+ 
+-	if [ "$TERMUX_ARCH" = "aarch64" ] || [ "$TERMUX_ARCH" = "x86_64" ]; then
++	if [ "$TERMUX_ARCH" == "x86_64" ]; then
+ 		export CARGO_TARGET_${env_host}_RUSTFLAGS+=" -C link-arg=$($CC -print-libgcc-file-name) -C link-arg=-l:libunwind.a"
+ 	fi
+ 
+diff --git a/packages/rust/dlopen.patch b/packages/rust/dlopen.patch
+deleted file mode 100644
+index 05871b877..000000000
+--- a/packages/rust/dlopen.patch
++++ /dev/null
+@@ -1,13 +0,0 @@
+---- a/src/tools/rust-analyzer/crates/proc-macro-srv/src/dylib.rs
+-+++ b/src/tools/rust-analyzer/crates/proc-macro-srv/src/dylib.rs
+-@@ -71,9 +71,8 @@ fn load_library(file: &Path) -> Result<Library, libloading::Error> {
+-     use std::os::raw::c_int;
+- 
+-     const RTLD_NOW: c_int = 0x00002;
+--    const RTLD_DEEPBIND: c_int = 0x00008;
+- 
+--    unsafe { UnixLibrary::open(Some(file), RTLD_NOW | RTLD_DEEPBIND).map(|lib| lib.into()) }
+-+    unsafe { UnixLibrary::open(Some(file), RTLD_NOW).map(|lib| lib.into()) }
+- }
+- 
+- #[derive(Debug)]
