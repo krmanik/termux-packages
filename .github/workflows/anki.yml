@@ -121,8 +121,9 @@ jobs:
           # The downloaded dependencies, in the build system's cache directory.
           export TERMUX_DOCKER_RUN_EXTRA_ARGS="--volume $PWD/.cache/anki/debs:/home/builder/.termux-build/_cache-aarch64"
           time ./scripts/run-docker.sh true
-          # Docker creates the missing parents of a mount point as root.
-          ./scripts/run-docker.sh sudo chown builder:builder /home/builder/.termux-build
+          # Docker creates the missing parents of a mount point as root. (sudo
+          # does not work in the container under its restricted AppArmor profile.)
+          docker exec -u root termux-package-builder chown builder:builder /home/builder/.termux-build
           df -h /
 
       - name: Free disk space
