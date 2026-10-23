@@ -40,8 +40,13 @@ permissions:
   contents: write
 
 env:
-  # Recipes on the anki branch that are not in termux/termux-packages.
-  RECIPES: x11-packages/anki packages/python-markupsafe packages/python-orjson packages/python-pyqt6-sip
+  # Recipes on the anki branch that are not in termux/termux-packages, one per
+  # line (sparse-checkout takes one pattern per line).
+  RECIPES: |
+    x11-packages/anki
+    packages/python-markupsafe
+    packages/python-orjson
+    packages/python-pyqt6-sip
   # A cache is only found with the same paths it was saved with.
   PYDEPS: |
     output/python-markupsafe_*.deb
