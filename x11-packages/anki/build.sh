@@ -80,6 +80,10 @@ termux_step_make() {
 		mkdir -p "${ANKI_BUILD_CACHE}"
 		rm -rf out
 		ln -s "${ANKI_BUILD_CACHE}" out
+		# Anki's runner configures with this environment only when there is
+		# no build.ninja. Otherwise ninja reconfigures through 'runner run',
+		# which removes YARN_BINARY, and the build looks for its own yarn.
+		rm -f out/build.ninja
 	fi
 
 	# Note: upstream's tools/build wrapper is not used because it chains into
