@@ -1,0 +1,220 @@
+##
+## Builds the anki package for Kioku (github.com/krmanik/kioku) and publishes it
+## as the release anki-<version>, which Kioku's anki-update workflow downloads.
+##
+## The recipes come from the anki branch, laid over the current upstream
+## master: './build-package.sh -i' downloads each dependency at the version its
+## recipe names, and the Termux repositories only keep the newest, so building
+## from an older tree compiles the outdated dependencies from source.
+##
+## A cold build takes about 30 minutes. Anki's build output (Rust targets,
+## node_modules) and the downloaded dependencies are kept in the Actions cache,
+## and python-markupsafe/python-orjson are reused while their recipes are
+## unchanged. GitHub drops a cache after 7 days without use, so a weekly job
+## restores it to keep it.
+##
+
+name: anki
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Anki tag to build, e.g. 26.09.3 (empty: the recipe's version)"
+        required: false
+      recipes:
+        description: "Branch with the anki recipes"
+        default: anki
+      cache:
+        description: "Use the build cache"
+        type: boolean
+        default: true
+      publish:
+        description: "Publish the release (off: keep the .debs as a workflow artifact only)"
+        type: boolean
+        default: true
+  schedule:
+    - cron: "23 4 * * 1"
+
+permissions:
+  contents: write
+
+env:
+  # Recipes on the anki branch that are not in termux/termux-packages.
+  RECIPES: x11-packages/anki packages/python-markupsafe packages/python-orjson packages/python-pyqt6-sip
+  # A cache is only found with the same paths it was saved with.
+  PYDEPS: |
+    output/python-markupsafe_*.deb
+    output/python-orjson_*.deb
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      # Seen from the builder container, which mounts the checkout here.
+      ANKI_BUILD_CACHE_DIR: /home/builder/termux-packages/.cache/anki/out
+    steps:
+      - name: Check out termux/termux-packages
+        uses: actions/checkout@v7
+        with:
+          repository: termux/termux-packages
+          ref: master
+
+      - name: Check out the recipes
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.recipes }}
+          path: .recipes
+          sparse-checkout: ${{ env.RECIPES }}
+          sparse-checkout-cone-mode: false
+
+      - name: Lay the recipes over upstream
+        id: info
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          for r in $RECIPES; do
+            rm -rf "$r"
+            cp -r ".recipes/$r" "$r"
+          done
+          recipe_version=$(. x11-packages/anki/build.sh; echo "$TERMUX_PKG_VERSION")
+          version=${VERSION:-$recipe_version}
+          if [ "$version" != "$recipe_version" ]; then
+            echo "::notice::building $version; the recipe on ${{ inputs.recipes }} says $recipe_version"
+            sed -i "s/^TERMUX_PKG_VERSION=.*/TERMUX_PKG_VERSION=\"$version\"/" x11-packages/anki/build.sh
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "upstream=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "recipes=$(git -C .recipes rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          rm -rf .recipes
+
+      - name: Restore the build cache
+        if: inputs.cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .cache/anki
+          key: anki-build-${{ steps.info.outputs.version }}-${{ github.run_id }}
+          restore-keys: |
+            anki-build-${{ steps.info.outputs.version }}-
+            anki-build-
+
+      - name: Restore python-markupsafe and python-orjson
+        id: pydeps
+        if: inputs.cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.PYDEPS }}
+          key: anki-pydeps-${{ hashFiles('packages/python-markupsafe/*', 'packages/python-orjson/*', 'packages/python/build.sh') }}
+
+      - name: Start the builder container
+        run: |
+          # Created here so that they belong to the runner's user, which is the
+          # container's builder user too (uid 1001).
+          mkdir -p .cache/anki/out .cache/anki/debs output
+          # The downloaded dependencies, in the build system's cache directory.
+          export TERMUX_DOCKER_RUN_EXTRA_ARGS="--volume $PWD/.cache/anki/debs:/home/builder/.termux-build/_cache-aarch64"
+          time ./scripts/run-docker.sh true
+          # Docker creates the missing parents of a mount point as root.
+          ./scripts/run-docker.sh sudo chown builder:builder /home/builder/.termux-build
+          df -h /
+
+      - name: Free disk space
+        run: |
+          # The build needs about 30 GB.
+          if [ "$(df --output=avail -B1G / | tail -1)" -lt 45 ]; then
+            ./scripts/free-space.sh
+          fi
+          df -h /
+
+      - name: Build
+        run: |
+          reuse=""
+          if [ "${{ steps.pydeps.outputs.cache-hit }}" = "true" ]; then
+            ls output
+            reuse="--reuse-built-packages"
+          fi
+          cache_env=""
+          if [ "${{ inputs.cache }}" = "true" ]; then
+            cache_env="--env ANKI_BUILD_CACHE=$ANKI_BUILD_CACHE_DIR"
+          fi
+          export TERMUX_DOCKER_EXEC_EXTRA_ARGS="$cache_env"
+          time ./scripts/run-docker.sh ./build-package.sh -i $reuse -a aarch64 anki
+
+      - name: Check the package
+        env:
+          VERSION: ${{ steps.info.outputs.version }}
+        run: |
+          deb="output/anki_${VERSION}_aarch64.deb"
+          dpkg-deb -f "$deb" Package Version Depends
+          # Kioku retargets the default package name in place.
+          if dpkg-deb -c "$deb" | awk '{print $6}' | grep -v '^\./$' | grep -v '^\./data/\(data/\(com\.termux/.*\)\?\)\?$'; then
+            echo "::error::files outside /data/data/com.termux"
+            exit 1
+          fi
+          du -sh .cache/anki/* || true
+          (cd output && sha256sum *.deb | tee SHA256SUMS.txt)
+
+      - name: Save python-markupsafe and python-orjson
+        if: inputs.cache && steps.pydeps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.PYDEPS }}
+          key: ${{ steps.pydeps.outputs.cache-primary-key }}
+
+      - name: Save the build cache
+        if: inputs.cache
+        uses: actions/cache/save@v6
+        with:
+          path: .cache/anki
+          key: anki-build-${{ steps.info.outputs.version }}-${{ github.run_id }}
+
+      - name: Keep the packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: anki-${{ steps.info.outputs.version }}
+          path: output/
+
+      - name: Publish the release
+        if: inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.info.outputs.version }}
+          UPSTREAM: ${{ steps.info.outputs.upstream }}
+          RECIPES_SHA: ${{ steps.info.outputs.recipes }}
+        run: |
+          tag="anki-$VERSION"
+          {
+            echo "Anki $VERSION for Termux (aarch64), built by the [anki workflow]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)"
+            echo "from the recipes at $RECIPES_SHA over termux/termux-packages $UPSTREAM."
+            echo "Installs under /data/data/com.termux/files/usr."
+            echo
+            echo '```'
+            cat output/SHA256SUMS.txt
+            echo '```'
+          } > notes.md
+          assets="output/anki_${VERSION}_aarch64.deb output/python-markupsafe_*.deb output/python-orjson_*.deb output/SHA256SUMS.txt"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" $assets --clobber
+            gh release edit "$tag" --notes-file notes.md --latest
+          else
+            gh release create "$tag" $assets --target "$RECIPES_SHA" --title "anki $VERSION" \
+              --notes-file notes.md --latest
+          fi
+
+  keep-cache:
+    # Restoring a cache counts as using it.
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache/restore@v6
+        with:
+          path: .cache/anki
+          key: anki-build-keep
+          restore-keys: anki-build-
+      - uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.PYDEPS }}
+          key: anki-pydeps-keep
+          restore-keys: anki-pydeps-
