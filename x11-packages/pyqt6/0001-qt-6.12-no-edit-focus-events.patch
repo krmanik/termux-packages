@@ -1,0 +1,15 @@
+Kioku builds PyQt6 6.11.0 (the version Anki pins) against the Termux
+repositories' Qt 6.12, which removed QEvent::EnterEditFocus and LeaveEditFocus
+(PyQt6 6.12 has them only for Qt < 6.12). Drop with Qt 6.11.
+
+--- a/sip/QtCore/qcoreevent.sip	2026-11-22 19:17:31
++++ b/sip/QtCore/qcoreevent.sip	2026-11-22 19:17:31
+@@ -200,8 +200,6 @@
+         PlatformSurface,
+         TabletTrackingChange,
+         GraphicsSceneLeave,
+-        EnterEditFocus,
+-        LeaveEditFocus,
+ %If (Qt_6_6_0 -)
+         DevicePixelRatioChange,
+ %End
