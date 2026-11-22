@@ -14,8 +14,11 @@ TERMUX_PKG_BUILD_DEPENDS="qt6-qtbase-cross-tools"
 TERMUX_PKG_EXCLUDED_ARCHES="i686"
 TERMUX_PKG_PYTHON_COMMON_BUILD_DEPS="wheel, PyQt-builder"
 TERMUX_PKG_BUILD_IN_SRC=true
+# Kioku: the sip ABI of the PyQt6-sip Anki pins (13.12.0); sip-build's default,
+# the newest it knows, needs a newer PyQt6-sip than Anki ships
 TERMUX_PKG_EXTRA_MAKE_ARGS="
 --verbose
+--abi-version=13.12
 --scripts-dir=$TERMUX_PREFIX/bin
 --disable=QtWebEngineQuick
 "
