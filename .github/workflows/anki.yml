@@ -7,11 +7,18 @@
 ## recipe names, and the Termux repositories only keep the newest, so building
 ## from an older tree compiles the outdated dependencies from source.
 ##
-## A cold build takes about 30 minutes. Anki's build output (Rust targets,
-## node_modules) and the downloaded dependencies are kept in the Actions cache,
-## and python-markupsafe/python-orjson are reused while their recipes are
-## unchanged. GitHub drops a cache after 7 days without use, so a weekly job
-## restores it to keep it.
+## Kioku runs the Python Anki pins (3.13), not Termux's (3.14): the anki branch
+## carries a python recipe at that version, so every Python package the
+## runtime needs (python-pip, pyqt6, python-pyqt6-webengine, python-rpds-py,
+## python-markupsafe, python-orjson) is built here for it too, and published
+## with anki. Their recipes there name versions the Termux repositories do
+## not have, so './build-package.sh -i' builds them instead of downloading.
+##
+## A cold build takes about 30 minutes for anki, plus the Python packages.
+## Anki's build output (Rust targets, node_modules) and the downloaded
+## dependencies are kept in the Actions cache, and the Python packages are
+## reused while their recipes are unchanged. GitHub drops a cache after 7 days
+## without use, so a weekly job restores it to keep it.
 ##
 
 name: anki
@@ -44,19 +51,26 @@ env:
   # line (sparse-checkout takes one pattern per line).
   RECIPES: |
     x11-packages/anki
+    packages/python
+    packages/python-pip
     packages/python-markupsafe
     packages/python-orjson
     packages/python-pyqt6-sip
+    packages/python-rpds-py
+    x11-packages/pyqt6
+    x11-packages/python-pyqt6-webengine
   # A cache is only found with the same paths it was saved with.
   PYDEPS: |
-    output/python-markupsafe_*.deb
-    output/python-orjson_*.deb
+    output/python_*.deb
+    output/python-*.deb
+    output/pyqt6_*.deb
 
 jobs:
   build:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    # A cold build of the Python packages (pyqt6 most of it) and anki.
+    timeout-minutes: 330
     env:
       # Mounted from .cache/anki/out. The checkout itself is mounted in the
       # container too, but its AppArmor profile only allows writing output/.
@@ -92,6 +106,7 @@ jobs:
             sed -i "s/^TERMUX_PKG_VERSION=.*/TERMUX_PKG_VERSION=\"$version\"/" x11-packages/anki/build.sh
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "python=$(. packages/python/build.sh; echo "$_MAJOR_VERSION")" >> "$GITHUB_OUTPUT"
           echo "upstream=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "recipes=$(git -C .recipes rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           rm -rf .recipes
@@ -101,18 +116,17 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: .cache/anki
-          key: anki-build-${{ steps.info.outputs.version }}-${{ github.run_id }}
+          key: anki-build-${{ steps.info.outputs.version }}-py${{ steps.info.outputs.python }}-${{ github.run_id }}
           restore-keys: |
-            anki-build-${{ steps.info.outputs.version }}-
-            anki-build-
+            anki-build-${{ steps.info.outputs.version }}-py${{ steps.info.outputs.python }}-
 
-      - name: Restore python-markupsafe and python-orjson
+      - name: Restore the Python packages
         id: pydeps
         if: inputs.cache
         uses: actions/cache/restore@v6
         with:
           path: ${{ env.PYDEPS }}
-          key: anki-pydeps-${{ hashFiles('packages/python-markupsafe/*', 'packages/python-orjson/*', 'packages/python/build.sh') }}
+          key: anki-pydeps-${{ hashFiles('packages/python/*', 'packages/python-*/*', 'x11-packages/pyqt6/*', 'x11-packages/python-pyqt6-webengine/*') }}
 
       - name: Start the builder container
         run: |
@@ -156,6 +170,18 @@ jobs:
         run: |
           deb="output/anki_${VERSION}_aarch64.deb"
           dpkg-deb -f "$deb" Package Version Depends
+          # Everything Python must be for the anki branch's Python, not a
+          # repository package for Termux's.
+          python=${{ steps.info.outputs.python }}
+          for d in output/*.deb; do
+            other=$(dpkg-deb -c "$d" | awk '{print $6}' | grep -o 'lib/python3\.[0-9]*/' | sort -u | grep -v "lib/python$python/" || true)
+            if [ -n "$other" ]; then
+              echo "::error::$d has files for another Python: $other"
+              exit 1
+            fi
+          done
+          ls output/python_${python}.*_aarch64.deb output/pyqt6_*.deb output/python-pyqt6-webengine_*.deb \
+            output/python-pip_*.deb output/python-rpds-py_*.deb >/dev/null
           # Kioku retargets the default package name in place.
           if dpkg-deb -c "$deb" | awk '{print $6}' | grep -v '^\./$' | grep -v '^\./data/\(data/\(com\.termux/.*\)\?\)\?$'; then
             echo "::error::files outside /data/data/com.termux"
@@ -164,7 +190,7 @@ jobs:
           du -sh .cache/anki/* || true
           (cd output && sha256sum *.deb | tee SHA256SUMS.txt)
 
-      - name: Save python-markupsafe and python-orjson
+      - name: Save the Python packages
         if: inputs.cache && steps.pydeps.outputs.cache-hit != 'true'
         uses: actions/cache/save@v6
         with:
@@ -176,7 +202,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: .cache/anki
-          key: anki-build-${{ steps.info.outputs.version }}-${{ github.run_id }}
+          key: anki-build-${{ steps.info.outputs.version }}-py${{ steps.info.outputs.python }}-${{ github.run_id }}
 
       - name: Keep the packages
         uses: actions/upload-artifact@v7
@@ -205,7 +231,7 @@ jobs:
             cat output/SHA256SUMS.txt
             echo '```'
           } > notes.md
-          assets="output/anki_${VERSION}_aarch64.deb output/python-markupsafe_*.deb output/python-orjson_*.deb output/SHA256SUMS.txt"
+          assets="$(ls output/*.deb) output/SHA256SUMS.txt"
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" $assets --clobber
             gh release edit "$tag" --notes-file notes.md --latest
