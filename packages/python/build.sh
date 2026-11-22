@@ -4,20 +4,22 @@ TERMUX_PKG_DESCRIPTION="Python 3 programming language intended to enable clear p
 TERMUX_PKG_LICENSE="custom"
 TERMUX_PKG_LICENSE_FILE="LICENSE"
 TERMUX_PKG_MAINTAINER="Yaksh Bariya <thunder-coding@termux.dev>"
-TERMUX_PKG_VERSION=(
-	"3.14.10"
-	"f358ab52bf2932ad55b1a72a29c9762169e6ac47"
-)
+# Kioku: the Python Anki pins (Anki 26.09.4: 3.13.18), not Termux 3.14, so that
+# add-ons run as on desktop. The 3.13 recipe from termux/termux-packages
+# fe7ac21070 with its patches rebased to 3.13.18 and renumbered as upstream
+# (termux_setup_build_python applies 0007-fix-ctypes-util-find_library.patch).
+TERMUX_PKG_VERSION="3.13.18"
+_DEBPYTHON_COMMIT=f358ab52bf2932ad55b1a72a29c9762169e6ac47
 TERMUX_PKG_SRCURL=(
-	"https://www.python.org/ftp/python/${TERMUX_PKG_VERSION[0]}/Python-${TERMUX_PKG_VERSION[0]}.tar.xz"
-	"https://salsa.debian.org/cpython-team/python3-defaults/-/archive/${TERMUX_PKG_VERSION[1]}/python3-defaults-${TERMUX_PKG_VERSION[1]}.tar.gz"
+	https://www.python.org/ftp/python/${TERMUX_PKG_VERSION}/Python-${TERMUX_PKG_VERSION}.tar.xz
+	https://salsa.debian.org/cpython-team/python3-defaults/-/archive/${_DEBPYTHON_COMMIT}/python3-defaults-${_DEBPYTHON_COMMIT}.tar.gz
 )
 TERMUX_PKG_SHA256=(
-	de414a57119abef52784d8993e341d53aed635fc2b05c2607d9f98a2c5b72032
+	abb0102e6d4ae027509bcb82327d9dd85515b44a3ba8ad538cfc5e9847029f68
 	3b7a76c144d39f5c4a2c7789fd4beb3266980c2e667ad36167e1e7a357c684b0
 )
 TERMUX_PKG_AUTO_UPDATE=false
-TERMUX_PKG_DEPENDS="gdbm, libandroid-posix-semaphore, libandroid-support, libbz2, libcrypt, libexpat, libffi, liblzma, libsqlite, ncurses, ncurses-ui-libs, openssl, readline, zlib, zstd"
+TERMUX_PKG_DEPENDS="gdbm, libandroid-posix-semaphore, libandroid-support, libbz2, libcrypt, libexpat, libffi, liblzma, libsqlite, ncurses, ncurses-ui-libs, openssl, readline, zlib"
 TERMUX_PKG_BUILD_DEPENDS="tk"
 TERMUX_PKG_RECOMMENDS="python-ensurepip-wheels, python-pip"
 TERMUX_PKG_SUGGESTS="python-tkinter"
@@ -78,7 +80,7 @@ termux_step_post_get_source() {
 		"$patch" | patch --silent -p1
 
 
-	mv "$TERMUX_PKG_SRCDIR/python3-defaults-${TERMUX_PKG_VERSION[1]}" "$TERMUX_PKG_SRCDIR/debpython"
+	mv "$TERMUX_PKG_SRCDIR/python3-defaults-$_DEBPYTHON_COMMIT" "$TERMUX_PKG_SRCDIR/debpython"
 }
 
 termux_step_pre_configure() {
@@ -152,7 +154,7 @@ termux_step_post_make_install() {
 
 termux_step_post_massage() {
 	# Verify that desired modules have been included:
-	for module in _bz2 _curses _lzma _multiprocessing _sqlite3 _ssl _tkinter zlib _zstd; do
+	for module in _bz2 _curses _lzma _multiprocessing _sqlite3 _ssl _tkinter zlib; do
 		if [ ! -f "${TERMUX_PREFIX}/lib/python${_MAJOR_VERSION}/lib-dynload/${module}".*.so ]; then
 			termux_error_exit "Python module library $module not built"
 		fi

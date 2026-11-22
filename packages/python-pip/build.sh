@@ -3,7 +3,10 @@ TERMUX_PKG_DESCRIPTION="The PyPA recommended tool for installing Python packages
 TERMUX_PKG_LICENSE="MIT"
 TERMUX_PKG_MAINTAINER="@termux"
 TERMUX_PKG_VERSION="26.3"
-TERMUX_PKG_REVISION=1
+# Kioku: revision above the Termux repository's, so that './build-package.sh -i'
+# builds it for this tree's Python (3.13, Anki's pin) instead of downloading
+# the repository's build for Python 3.14.
+TERMUX_PKG_REVISION=101
 TERMUX_PKG_SRCURL=https://github.com/pypa/pip/archive/refs/tags/$TERMUX_PKG_VERSION.tar.gz
 TERMUX_PKG_SHA256=fb51108c23d88269d37da5813d97b5b27395c824b751ba1141a5cf408bcdd658
 TERMUX_PKG_AUTO_UPDATE=true

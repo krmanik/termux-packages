@@ -3,6 +3,10 @@ TERMUX_PKG_DESCRIPTION="Python Bindings for the Qt6 WebEngine Framework"
 TERMUX_PKG_LICENSE="GPL-3.0"
 TERMUX_PKG_MAINTAINER="@termux"
 TERMUX_PKG_VERSION="6.11.0"
+# Kioku: revision above the Termux repository's, so that './build-package.sh -i'
+# builds it for this tree's Python (3.13, Anki's pin) instead of downloading
+# the repository's build for Python 3.14.
+TERMUX_PKG_REVISION=101
 TERMUX_PKG_SRCURL=https://files.pythonhosted.org/packages/source/p/pyqt6-webengine/pyqt6_webengine-${TERMUX_PKG_VERSION}.tar.gz
 TERMUX_PKG_SHA256=15cf49efbbbd4c6bc87653b2c4ae80d6049f800e31620b336734ae2e37cbedae
 TERMUX_PKG_DEPENDS="libc++, pyqt6, python, python-pip, qt6-qtbase, qt6-qtwebchannel, qt6-qtwebengine"
